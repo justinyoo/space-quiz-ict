@@ -108,6 +108,15 @@
     .stat small { color: var(--muted); font-size: 11px; }
     .stat:first-child strong { color: var(--green); }
     .stat:nth-child(2) strong { color: var(--red); }
+    .review-toggle { width: 100%; margin-bottom: 16px; padding: 12px; border: 1px solid var(--purple); border-radius: 8px; background: var(--purple-soft); color: var(--purple); font-weight: 650; cursor: pointer; }
+    .review { margin-bottom: 24px; text-align: left; }
+    .review-list { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
+    .review-item { padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--option); }
+    .review-question { margin: 0 0 12px; font-size: 15px; line-height: 1.6; }
+    .review-item p { margin: 8px 0 0; font-size: 13px; }
+    .review-selected { color: var(--red); }
+    .review-correct { color: var(--green); }
+    .review-empty { margin: 0; text-align: center; }
     .restart { width: 100%; padding: 13px; font-size: 14px; }
     .result-note { color: var(--muted); font-size: 11px; margin: 13px 0 0; }
     .confetti { position: absolute; top: -12px; left: var(--x); width: 6px; height: 11px; border-radius: 2px; background: var(--c); pointer-events: none; animation: confetti 2.2s var(--delay) ease-in both; }
@@ -217,6 +226,11 @@
         <div class="stat"><strong id="wrong-count"></strong><small>새로운 발견</small></div>
         <div class="stat"><strong id="accuracy"></strong><small>정답률</small></div>
       </div>
+      <button class="review-toggle" id="review-toggle" type="button" aria-expanded="false" aria-controls="review">오답 복습 (0문제)</button>
+      <div class="review" id="review" role="region" aria-labelledby="review-toggle" hidden>
+        <ol class="review-list" id="review-list"></ol>
+        <p class="review-empty" id="review-empty" hidden>틀린 문제가 없어요! 모든 문제를 맞혔어요.</p>
+      </div>
       <button class="next restart" id="restart">다시 탐험하기 <span aria-hidden="true">↗</span></button>
       <p class="result-note">우주에는 언제나 새롭게 배울 것이 있어요.</p>
     </section>
@@ -303,6 +317,7 @@
     let score = 0;
     let answered = false;
     let finished = false;
+    const selectedAnswers = [];
 
     function updateProgress(completed) {
       $("progress").setAttribute("aria-valuenow", String(completed));
@@ -350,6 +365,7 @@
     function selectAnswer(selected) {
       if (answered || finished) return;
       answered = true;
+      selectedAnswers[current] = selected;
       const item = questions[current];
       const correct = selected === item.correct;
       if (correct) score++;
@@ -380,6 +396,37 @@
       $("next").focus({ preventScroll: true });
     }
 
+    function renderReview() {
+      $("review-list").replaceChildren();
+      selectedAnswers.forEach((selected, index) => {
+        const item = questions[index];
+        if (selected === item.correct) return;
+        const entry = document.createElement("li");
+        entry.className = "review-item";
+        const heading = document.createElement("h3");
+        heading.className = "review-question";
+        heading.textContent = `문제 ${index + 1}. ${item.question}`;
+        entry.append(heading);
+        [
+          ["review-selected", `내 답 (오답): ${item.answers[selected]}`],
+          ["review-correct", `정답: ${item.answers[item.correct]}`],
+          ["review-fact", `해설: ${item.fact}`]
+        ].forEach(([className, text]) => {
+          const paragraph = document.createElement("p");
+          paragraph.className = className;
+          paragraph.textContent = text;
+          entry.append(paragraph);
+        });
+        $("review-list").append(entry);
+      });
+      const wrongCount = $("review-list").children.length;
+      $("review-toggle").textContent = `오답 복습 (${wrongCount}문제)`;
+      $("review-toggle").setAttribute("aria-expanded", "false");
+      $("review").hidden = true;
+      $("review-list").hidden = wrongCount === 0;
+      $("review-empty").hidden = wrongCount !== 0;
+    }
+
     function showResults() {
       finished = true;
       $("quiz").hidden = true;
@@ -401,6 +448,7 @@
       $("correct-count").textContent = String(score);
       $("wrong-count").textContent = String(questions.length - score);
       $("accuracy").textContent = `${Math.round(score / questions.length * 100)}%`;
+      renderReview();
       if (score >= 8 && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
         for (let i = 0; i < 24; i++) {
           const piece = document.createElement("span");
@@ -426,10 +474,18 @@
       }
     });
 
+    $("review-toggle").addEventListener("click", () => {
+      const expanded = $("review-toggle").getAttribute("aria-expanded") === "true";
+      $("review-toggle").setAttribute("aria-expanded", String(!expanded));
+      $("review").hidden = expanded;
+    });
+
     $("restart").addEventListener("click", () => {
       current = 0;
       score = 0;
       finished = false;
+      selectedAnswers.length = 0;
+      renderReview();
       $("results").hidden = true;
       $("results").querySelectorAll(".confetti").forEach((piece) => piece.remove());
       $("quiz").hidden = false;
