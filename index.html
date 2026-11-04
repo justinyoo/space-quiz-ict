@@ -117,6 +117,13 @@
     .review-selected { color: var(--red); }
     .review-correct { color: var(--green); }
     .review-empty { margin: 0; text-align: center; }
+    .result-sharing { display: grid; gap: 10px; margin-bottom: 12px; }
+    .copy-result { width: 100%; padding: 13px; font-size: 14px; }
+    .copy-status { margin: 0; color: var(--muted); font-size: 12px; }
+    .manual-copy { text-align: left; }
+    .manual-copy label { display: block; margin-bottom: 5px; color: var(--muted); font-size: 12px; }
+    .result-copy-text { width: 100%; min-height: 72px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--option); color: var(--text); font: inherit; font-size: 12px; resize: vertical; }
+    .result-copy-text:focus-visible { outline: 3px solid var(--purple); outline-offset: 3px; }
     .restart { width: 100%; padding: 13px; font-size: 14px; }
     .result-note { color: var(--muted); font-size: 11px; margin: 13px 0 0; }
     .confetti { position: absolute; top: -12px; left: var(--x); width: 6px; height: 11px; border-radius: 2px; background: var(--c); pointer-events: none; animation: confetti 2.2s var(--delay) ease-in both; }
@@ -231,6 +238,14 @@
         <ol class="review-list" id="review-list"></ol>
         <p class="review-empty" id="review-empty" hidden>틀린 문제가 없어요! 모든 문제를 맞혔어요.</p>
       </div>
+      <div class="result-sharing">
+        <button class="next copy-result" id="copy-result" type="button">결과 복사</button>
+        <p class="copy-status" id="copy-status" role="status" aria-live="polite" aria-atomic="true"></p>
+        <div class="manual-copy" id="manual-copy" hidden>
+          <label for="result-copy-text">복사할 결과</label>
+          <textarea class="result-copy-text" id="result-copy-text" readonly></textarea>
+        </div>
+      </div>
       <button class="next restart" id="restart">다시 탐험하기 <span aria-hidden="true">↗</span></button>
       <p class="result-note">우주에는 언제나 새롭게 배울 것이 있어요.</p>
     </section>
@@ -318,6 +333,7 @@
     let answered = false;
     let finished = false;
     const selectedAnswers = [];
+    let resultText = "";
 
     function updateProgress(completed) {
       $("progress").setAttribute("aria-valuenow", String(completed));
@@ -449,6 +465,10 @@
       $("wrong-count").textContent = String(questions.length - score);
       $("accuracy").textContent = `${Math.round(score / questions.length * 100)}%`;
       renderReview();
+      resultText = `${tier.emoji} 오르빗 우주 탐험 퀴즈 — ${score} / ${questions.length}점 · 정답률 ${$("accuracy").textContent}`;
+      $("copy-status").textContent = "";
+      $("manual-copy").hidden = true;
+      $("result-copy-text").value = "";
       if (score >= 8 && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
         for (let i = 0; i < 24; i++) {
           const piece = document.createElement("span");
@@ -464,6 +484,24 @@
       $("result-title").focus({ preventScroll: true });
       $("results").scrollIntoView({ block: "nearest", behavior: "instant" });
     }
+
+    $("copy-result").addEventListener("click", async () => {
+      $("copy-status").textContent = "";
+      $("manual-copy").hidden = true;
+      try {
+        if (!navigator.clipboard || typeof navigator.clipboard.writeText !== "function") {
+          throw new Error("클립보드 API를 사용할 수 없습니다.");
+        }
+        await navigator.clipboard.writeText(resultText);
+        $("copy-status").textContent = "결과를 복사했어요.";
+      } catch {
+        $("copy-status").textContent = "클립보드에 복사할 수 없어요. 아래 결과를 직접 선택해 복사해 주세요.";
+        $("result-copy-text").value = resultText;
+        $("manual-copy").hidden = false;
+        $("result-copy-text").focus();
+        $("result-copy-text").select();
+      }
+    });
 
     $("next").addEventListener("click", () => {
       if (!answered || finished) return;
